@@ -24,7 +24,7 @@ c0 = np.sqrt(gamma * R * T0)
 u0 = c0 * M0
 w0 = np.array([np.sqrt(rho0), np.sqrt(rho0) * u0, 0., p0])
 
-Lx, Ly = 25., 10.
+Lx, Ly = 20., 12.5
 dx = dy = 0.25
 dt = dx / c0 * 0.25
 
@@ -35,7 +35,7 @@ grid = psarray.grid2d(int(Lx / dx), int(Ly / dy))
 x = (grid.i + 0.5) * dx - 0.2 * Lx
 y = (grid.j + 0.5) * dy - 0.5 * Ly
 
-obstacle = grid.exp(-((x**2 + y**2) / 1)**64)
+obstacle = grid.exp(-((x**2 + y**2) / 1)**5) #TODO: less sharp!
 
 fan = grid.cos((x / Lx + 0.2) * np.pi)**64
 
@@ -89,7 +89,7 @@ def rhs(w):
     rhs_w[-1] = energy
 
     rhs_w[1:3] += 0.1 * c0 * obstacle * w[1:3]
-    rhs_w += 0.1 * c0 * (w - w0) * fan
+    rhs_w += 0.1 * c0 * (w - w0) * fan  # TODO: increase leading constant for more dissipation
 
     return rhs_w
 

@@ -29,12 +29,18 @@ else:
     w = load(args.restart)
     assert w.shape == (Nx, Ny, 4)
 
+
+fout = open('force_hist.txt','w')
+
 figure(figsize=(28,10))
-for iplot in range(200):
+for iplot in range(100):
     for iprint in range(nPrintsPerPlot):
         for istep in range(nStepPerPrint):
             w = step(w)
         print('%f %f' % tuple(force(w)))
+        
+        fout.write('%f %f\n' % tuple(force(w)))
+
         sys.stdout.flush()
     w.save('w{0:06d}.npy'.format(iplot))
     r, ru, rv, p = w
@@ -50,6 +56,7 @@ for iplot in range(200):
     axis('scaled'); colorbar()
     savefig('fig{0:06d}.png'.format(iplot))
 
+fout.close()
 
 ################################################################################
 ################################################################################

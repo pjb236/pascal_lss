@@ -34,6 +34,9 @@ if os.path.exists('a{0:06d}.npy'.format(iplot)):
 else:
     a = grid.zeros([4])
 
+
+fout = open('adj_hist.txt','w')
+
 figure(figsize=(28,10))
 
 for iplot in range(args.nStart, args.nEnd, -1):
@@ -44,6 +47,11 @@ for iplot in range(args.nStart, args.nEnd, -1):
         a[1] += 0.1 * c0 * obstacle
         w = history.pop()
         a = step.adjoint(a, w)
+        aru_mag = norm(a[1]._data) 
+        arv_mag = norm(a[2]._data)
+        print('%f %f' % (aru_mag, arv_mag))
+        fout.write('%f %f\n' % (aru_mag, arv_mag))
+
     a.save('a{0:06d}.npy'.format(iplot - 1))
     clf()
     subplot(2,1,1); contourf(x._data.T, y._data.T, a[1]._data.T, 200);
@@ -52,7 +60,7 @@ for iplot in range(args.nStart, args.nEnd, -1):
     axis('scaled'); colorbar()
     savefig('adj{0:06d}.png'.format(iplot - 1))
 
-
+fout.close()
 ################################################################################
 ################################################################################
 ################################################################################
