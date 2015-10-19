@@ -1,6 +1,6 @@
 ################################################################################
 #                                                                              #
-#       tunnel_adjoint.py copyright 2015 Qiqi Wang (qiqi.wang@gmail.com)       #
+#   tunnel_tangent.py copyright 2015 Patrick Blonigan (pjblonigan@gmail.com)   #
 #                                                                              #
 ################################################################################
 
