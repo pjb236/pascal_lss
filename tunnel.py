@@ -36,6 +36,7 @@ x = (grid.i + 0.5) * dx - 0.2 * Lx
 y = (grid.j + 0.5) * dy - 0.5 * Ly
 
 obstacle = grid.exp(-((x**2 + y**2) / 1)**5) #TODO: less sharp!
+s = 0.1 # obstacle weighting term
 
 fan = grid.cos((x / Lx + 0.2) * np.pi)**64
 
@@ -88,14 +89,14 @@ def rhs(w):
     rhs_w[2] = momentum_y / r
     rhs_w[-1] = energy
 
-    rhs_w[1:3] += 0.1 * c0 * obstacle * w[1:3]
+    rhs_w[1:3] += s * c0 * obstacle * w[1:3]
     rhs_w += 0.1 * c0 * (w - w0) * fan  # TODO: increase leading constant for more dissipation
 
     return rhs_w
 
 
 def force(w):
-    return grid.reduce_sum(0.1 * c0 * obstacle * w[1:3])
+    return grid.reduce_sum(s * c0 * obstacle * w[1:3])
 
 
 @psarray.psc_compile
@@ -157,6 +158,31 @@ if __name__ == '__main__':
     for eps in [1E-8, 1E-7, 1E-6, 1E-5, 1E-4, 1E-3]:
         conserved_1 = np.array(conserved(w - eps * rhs(w)))
         print((conserved_1 - conserved_0) / eps)
+
+# ---------------------------------------------------------------------------- #
+#                       ADDITIONAL FUNCTIONS FOR LSS                           #
+# ---------------------------------------------------------------------------- #
+
+def ddt(w):
+    # time derivative of primal
+    return -rhs(w)
+
+def obj(w):
+    # objective function
+    J = grid.reduce_sum(s * c0 * obstacle * w[1:3])
+    return J[0]
+
+def tan_force():
+    # Tangent forcing terms, also used to compute objective sensitivity with
+    # adjoint solution
+    return 0.0
+
+def adj_force():
+    # Adjoint forcing terms, also used to compute objetive sensitivity with 
+    # tangent solution
+    return 0.0
+
+
 
 ################################################################################
 ################################################################################
