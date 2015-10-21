@@ -17,7 +17,7 @@ from pylab import *
 from tunnel import *
 
 # set parameters
-s = 0.1
+s = 0.1 * np.ones(2)
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--restart', type=str, default='')
@@ -35,13 +35,13 @@ else:
 fout = open('force_hist.txt','w')
 
 figure(figsize=(28,10))
-for iplot in range(100):
+for iplot in range(200):
     for iprint in range(nPrintsPerPlot):
         for istep in range(nStepPerPrint):
             w = step(w,s)
-        print('%f %f' % tuple(force(w)))
+        print('%f %f' % tuple(force(w,s)))
         
-        fout.write('%f %f\n' % tuple(force(w)))
+        fout.write('%f %f\n' % tuple(force(w,s)))
 
         sys.stdout.flush()
     w.save('w{0:06d}.npy'.format(iplot))

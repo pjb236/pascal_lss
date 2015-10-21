@@ -15,7 +15,7 @@ import psarray_local as psarray
 #                                 PROBLEM SET UP                               #
 # ---------------------------------------------------------------------------- #
 
-DISS_COEFF = 0.01
+DISS_COEFF = 0.05 # TODO: originally 0.01
 gamma, R = 1.4, 287.
 T0, p0, M0 = 300., 101325., 0.25
 
@@ -94,7 +94,7 @@ def rhs(w,s):
     return rhs_w
 
 
-def force(w):
+def force(w,s):
     return grid.reduce_sum(s[0] * c0 * obstacle * w[1:3])
 
 
@@ -175,14 +175,14 @@ def tan_force(w,s):
     # Tangent forcing terms, also used to compute objective sensitivity with
     # adjoint solution
     df = grid.zeros([4])
-    df[1:3] = c0 * obstacle * w[1:3]
+    df[1:3] = c0 * obstacle * w[1:3] # sensitivity to obstacle weighting!
     return df
 
 def adj_force(w,s):
     # Adjoint forcing terms, also used to compute objetive sensitivity with 
     # tangent solution
     dJ = grid.zeros([4])
-    dJ[1:3] = s[0] * c0 * obstacle * grid.ones([2])
+    dJ[1] = s[0] * c0 * obstacle # average drag! 
     return dJ
 
 def dd_obj(w,s):

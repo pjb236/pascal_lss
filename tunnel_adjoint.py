@@ -42,7 +42,8 @@ fout = open('adj_hist.txt','w')
 figure(figsize=(28,10))
 
 for iplot in range(args.nStart, args.nEnd, -1):
-    history = histstack.HistoryStack(nPrintsPerPlot * nStepPerPrint, step)
+    step_fx = lambda x : step(x,s)
+    history = histstack.HistoryStack(nPrintsPerPlot * nStepPerPrint, step_fx)
     history.populate(grid.load('w{0:06d}.npy'.format(iplot - 1)))
 
     for i in range(nPrintsPerPlot * nStepPerPrint):
