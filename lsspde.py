@@ -21,12 +21,12 @@ from tunnel import *
 
 
 class primal(object):
-    def __init__(self, m, K, u0=None, T0=0, obj=obj, restart=''):
+    def __init__(self, s, m, K, u0=None, T0=0, obj=obj, restart=''):
         # inputs:
         # m: number of time steps per segment
         # K: number of time segments
         # obj: objective function, takes state u, parameters s as inputs
-
+        self.s = s
         self.m, self.K = int(m), int(K)
         self._obj = obj
         self.restart = restart
@@ -45,17 +45,19 @@ class primal(object):
         # print file with information on primal solution
         fout = open('primal_info.txt','w')
         fout.write('Information on current primal solution:\n')
+        fout.write('Parameter values:' + str(s) + '\n')
         fout.write('Started from: ' + self.restart + '\n')
         fout.write('Spin up time: ' + str(T0) + '\n')
         fout.write('# Time segments: ' + str(self.K) + '\n')
         fout.write('# steps per segment: ' + str(self.m) + '\n')
 
+        fout.close()
 
 
     def spin_up(self, u0, T0):
         # solve primal for spin up time, save final step
         for i in range(int(T0/dt)):
-            u0 = step(u0)
+            u0 = step(u0,self.s)
         
         print type(u0)
         u0.save('u000000.npy') 
@@ -67,12 +69,12 @@ class primal(object):
         u = grid.load(self.restart)
  
         # initialize objective function computation
-        Jbar = obj(u) / (self.m * self.K)
+        Jbar = obj(u,self.s) / (self.m * self.K)
 
         for i in range(self.K):
             for j in range(self.m):
-                u = step(u)
-                J = obj(u)
+                u = step(u,self.s)
+                J = obj(u,self.s)
                 print J
                 Jbar = Jbar + J / (self.m * self.K)
 
@@ -93,52 +95,66 @@ class lss(object):
      # adj_force
 
 
-     def __init__(self,m,K,obj,tan_force,adj_force,eps=0.0,proj=True):
-         self.eps = float(eps) 
+     def __init__(self,s,m,K,obj,tan_force,adj_force,eps=0.0,proj=True):
+         self.s = float(s)
          self._obj = obj
          self._tan_force = tan_force
          self._adj_force = adj_force
          self.m, self.K = m, K
          self.proj = proj
+         self.eps = float(eps) 
          print self.m, self.K 
+
+     def grid_dot(self,u,v):
+         # dot product on all axes for grid2d objects u and v
+         return (u._data * v._data).sum()
 
      def project_ddt(self,u,v):
          # remove component of v in the ddt(u) direction
          if self.proj:
-             du = ddt(u)
-             du2 = (du._data ** 2).sum()
-             vu = (v._data * du._data).sum()
+             du = ddt(u,self.s)
+             du2 = self.grid_dot(du,du)
+             vu = self.grid_dot(v,du)
              v = v - (vu/du2) * du
          
          return v
 
-     def forward(self, iSeg, vt0, inhomo=0.0):
+     def forward(self, iSeg, vt0, inhomo=False):
          # solve tangent for a time segment
 
          # load primal
          u = grid.load('u{0:06d}.npy'.format(iSeg))  
          vt = vt0.copy()
+         grad = 0.0
 
          # iterate m times
          for i in range(self.m):
-             vt += inhomo * self._tan_force(u)
-             vt,u = step.tangent(vt,u)
+             if inhomo:
+                  grad += self.grid_dot(self._adj_force(u,self.s),vt) / (self.m*self.K)
+                  vt += self._tan_force(u,self.s) 
+             vt,u = step.tangent(vt,u,self.s)
 
-         return vt
+         
+         return vt, grad
 
-     def backward(self, iSeg, vaT, inhomo=0.0):
+     def backward(self, iSeg, vaT, inhomo=False):
          # solve adjoint for a time segment
+         step_fx = lambda x : step(x,self.s) 
 
-         history = histstack.HistoryStack(self.m, step)
+         history = histstack.HistoryStack(self.m, step_fx)
          history.populate(grid.load('u{0:06d}.npy'.format(iSeg)))
          va = vaT.copy()
-         
+         grad = 0.0
+
          for i in range(self.m-1,-1,-1):
              u = history.pop()
-             va = step.adjoint(va, u)
-             va += inhomo * self.adj_force(u)
-
-         return va
+             va = step.adjoint(va, u, self.s)
+              
+             if inhomo:
+                 va += self._adj_force(u,self.s) / (self.m * self.K)
+                 grad += self.grid_dot(self._tan_force(u,self.s),va)
+         
+         return va, grad
 
 
 # TODO: Tangent Gradient

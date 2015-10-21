@@ -36,7 +36,6 @@ x = (grid.i + 0.5) * dx - 0.2 * Lx
 y = (grid.j + 0.5) * dy - 0.5 * Ly
 
 obstacle = grid.exp(-((x**2 + y**2) / 1)**5) #TODO: less sharp!
-s = 0.1 # obstacle weighting term
 
 fan = grid.cos((x / Lx + 0.2) * np.pi)**64
 
@@ -57,7 +56,7 @@ def dissipation(r, u, dc):
     laplace = lambda u : (u.x_p + u.x_m + u.y_p + u.y_m) * 0.25 - u
     return laplace(dc * r * r * laplace(u))
 
-def rhs(w):
+def rhs(w,s):
     r, ru, rv, p = w
     u, v = ru / r, rv / r
 
@@ -100,11 +99,11 @@ def force(w):
 
 
 @psarray.psc_compile
-def step(w):
-    dw0 = -dt * rhs(w)
-    dw1 = -dt * rhs(w + 0.5 * dw0)
-    dw2 = -dt * rhs(w + 0.5 * dw1)
-    dw3 = -dt * rhs(w + dw2)
+def step(w,s):
+    dw0 = -dt * rhs(w,s)
+    dw1 = -dt * rhs(w + 0.5 * dw0,s)
+    dw2 = -dt * rhs(w + 0.5 * dw1,s)
+    dw3 = -dt * rhs(w + dw2,s)
     return w + (dw0 + dw3) / 6 + (dw1 + dw2) / 3
 
 
@@ -154,36 +153,45 @@ if __name__ == '__main__':
     w = (grid.ones(4) + 0.01 * grid.random(4)) + w0
     w[1:-1] += 0.01 * (grid.random(2) - 0.5) * w0[1]
     conserved_0 = np.array(conserved(w))
-    print(np.array(ddt_conserved(w, rhs(w))))
+    print(np.array(ddt_conserved(w, rhs(w,0.1))))
     for eps in [1E-8, 1E-7, 1E-6, 1E-5, 1E-4, 1E-3]:
-        conserved_1 = np.array(conserved(w - eps * rhs(w)))
+        conserved_1 = np.array(conserved(w - eps * rhs(w,0.1)))
         print((conserved_1 - conserved_0) / eps)
 
 # ---------------------------------------------------------------------------- #
 #                       ADDITIONAL FUNCTIONS FOR LSS                           #
 # ---------------------------------------------------------------------------- #
 
-def ddt(w):
+def ddt(w,s):
     # time derivative of primal
-    return -rhs(w)
+    return -rhs(w,s)
 
-def obj(w):
+def obj(w,s):
     # objective function
     J = grid.reduce_sum(s * c0 * obstacle * w[1:3])
     return J[0]
 
-def tan_force():
+def tan_force(w,s):
     # Tangent forcing terms, also used to compute objective sensitivity with
     # adjoint solution
-    return 0.0
+    df = grid.zeros([4])
+    df[1:3] = c0 * obstacle * w[1:3]
+    return df
 
-def adj_force():
+def adj_force(w,s):
     # Adjoint forcing terms, also used to compute objetive sensitivity with 
     # tangent solution
-    return 0.0
+    s = 0.1 #TODO
+    dJ = grid.zeros([4])
+    dJ[1:3] = s * c0 * obstacle * grid.ones([2])
+    return dJ
+
+def dd_obj(w,s):
+    # portion of the objective function sensitivity that depends directly on 
+    # the parameters s
+    dJ = grid.reduce_sum(c0 * obstacle * w[1:3]) 
+    return dJ[0]
 
 
-
-################################################################################
 ################################################################################
 ################################################################################
