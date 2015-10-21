@@ -18,6 +18,8 @@ from pylab import *
 
 from tunnel import *
 
+s = 0.1 # set parameters
+
 parser = argparse.ArgumentParser()
 parser.add_argument('nStart', type=int)
 parser.add_argument('nEnd', type=int)
@@ -44,7 +46,7 @@ for iplot in range(args.nStart, args.nEnd):
             # tangent forcing
             tan[1:3] += c0 * obstacle * w[1:3] # sensitivity to obstacle weight
             ####################################################################
-            tan,w = step.tangent(tan, w)
+            tan,w = step.tangent(tan, w, s)
         tru_mag = norm(tan[1]._data) 
         trv_mag = norm(tan[2]._data)
         print('%f %f' % (tru_mag, trv_mag))

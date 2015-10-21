@@ -16,6 +16,8 @@ from pylab import *
 
 from tunnel import *
 
+# set parameters
+s = 0.1
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--restart', type=str, default='')
@@ -36,7 +38,7 @@ figure(figsize=(28,10))
 for iplot in range(100):
     for iprint in range(nPrintsPerPlot):
         for istep in range(nStepPerPrint):
-            w = step(w)
+            w = step(w,s)
         print('%f %f' % tuple(force(w)))
         
         fout.write('%f %f\n' % tuple(force(w)))

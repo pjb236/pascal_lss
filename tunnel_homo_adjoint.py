@@ -41,6 +41,9 @@ def orthogonalize(a):
 
     return a / w0, L  # re-dimensionalize
 
+
+s = 0.1 # set parameters
+
 parser = argparse.ArgumentParser()
 parser.add_argument('nStart', type=int)
 parser.add_argument('nEnd', type=int)
@@ -67,7 +70,7 @@ for iplot in range(args.nStart, args.nEnd, -1):
     for i in range(nPrintsPerPlot * nStepPerPrint):
         w = history.pop()
         for iAdj in range(args.mAdj):
-            a[iAdj] = step.adjoint(a[iAdj], w)
+            a[iAdj] = step.adjoint(a[iAdj], w, s)
 
     a, L = orthogonalize(a)
 

@@ -39,6 +39,8 @@ def orthogonalize_wrt(a, a_homo):
 
     return a / w0, b  # re-dimensionalize
 
+s = 0.1 # set parameters
+
 parser = argparse.ArgumentParser()
 parser.add_argument('nStart', type=int)
 parser.add_argument('nEnd', type=int)
@@ -65,7 +67,7 @@ for iplot in range(args.nStart, args.nEnd, -1):
     for i in range(nPrintsPerPlot * nStepPerPrint):
         a[1] += 0.1 * c0 * obstacle
         w = history.pop()
-        a = step.adjoint(a, w)
+        a = step.adjoint(a, w, s)
 
     a_homo = grid.load('a{0:06d}-{1:03d}.npy'.format(iplot - 1, args.mAdj))
     a, b = orthogonalize_wrt(a, a_homo)
