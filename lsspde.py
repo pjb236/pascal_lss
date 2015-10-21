@@ -96,7 +96,7 @@ class lss(object):
 
 
      def __init__(self,s,m,K,obj,tan_force,adj_force,eps=0.0,proj=True):
-         self.s = float(s)
+         self.s = s
          self._obj = obj
          self._tan_force = tan_force
          self._adj_force = adj_force
@@ -165,7 +165,22 @@ class lss(object):
 # - compute gradient(s) from adjoint solution
 # - DO NOT forget dJds terms!
 
-# TODO: grid to 1D array (and vice-versa)
+
+
+     def grid2array(self,v_grid):
+         # convert grid object to 1D array
+         Nx,Ny = int(Lx / dx), int(Ly / dy)
+         v_arr = v_grid._data
+         v_arr = np.reshape(v_arr, (Nx * Ny * 4,))
+         return v_arr
+
+     def array2grid(self,v_arr):
+         # convert 1D array to grid object
+         Nx,Ny = int(Lx / dx), int(Ly / dy)
+         assert v_arr.shape[0] == Nx * Ny * 4
+         v_arr = np.reshape(v_arr, (Nx,Ny,4))
+         v_grid = grid.array(v_arr, v_arr.shape)
+         return v_grid
 
 
 # TODO: matvec

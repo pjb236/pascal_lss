@@ -1,6 +1,6 @@
 ################################################################################
 #                                                                              #
-#       tunnel_primal.py copyright 2015 Qiqi Wang (qiqi.wang@gmail.com)        #
+#       tunnel_test.py copyright 2015 Patrick Blonigan (pjblonigan@gmail.com)  #
 #                                                                              #
 ################################################################################
 
@@ -34,13 +34,20 @@ else:
     w = load(args.restart)
     assert w.shape == (Nx, Ny, 4)
 
+s = 0.1 * ones(2)
 
+
+
+df = step.tan_force(w,s)
+
+print df._data.shape
+
+'''
 # test discrete consitency of tangent and adjoint
-
 t0 = time.time()
-v1,w1 = step.tangent(v0,w)
+v1,w1 = step.tangent(v0,w,s)
 t1 = time.time()
-wh0 = step.adjoint(wh1,w)
+wh0 = step.adjoint(wh1,w,s)
 t2 = time.time()
 
 
@@ -51,7 +58,7 @@ print "tangent:", t1-t0
 print "adjoint:", t2-t1
 
 print a0, a1, (a0 - a1)/a0
-
+'''
 ################################################################################
 ################################################################################
 ################################################################################

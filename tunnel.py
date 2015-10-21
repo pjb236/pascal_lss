@@ -88,14 +88,14 @@ def rhs(w,s):
     rhs_w[2] = momentum_y / r
     rhs_w[-1] = energy
 
-    rhs_w[1:3] += s * c0 * obstacle * w[1:3]
-    rhs_w += 0.1 * c0 * (w - w0) * fan  # TODO: increase leading constant for more dissipation
+    rhs_w[1:3] += s[0] * c0 * obstacle * w[1:3]
+    rhs_w += s[1] * c0 * (w - w0) * fan  
 
     return rhs_w
 
 
 def force(w):
-    return grid.reduce_sum(s * c0 * obstacle * w[1:3])
+    return grid.reduce_sum(s[0] * c0 * obstacle * w[1:3])
 
 
 @psarray.psc_compile
@@ -168,7 +168,7 @@ def ddt(w,s):
 
 def obj(w,s):
     # objective function
-    J = grid.reduce_sum(s * c0 * obstacle * w[1:3])
+    J = grid.reduce_sum(s[0] * c0 * obstacle * w[1:3])
     return J[0]
 
 def tan_force(w,s):
@@ -181,9 +181,8 @@ def tan_force(w,s):
 def adj_force(w,s):
     # Adjoint forcing terms, also used to compute objetive sensitivity with 
     # tangent solution
-    s = 0.1 #TODO
     dJ = grid.zeros([4])
-    dJ[1:3] = s * c0 * obstacle * grid.ones([2])
+    dJ[1:3] = s[0] * c0 * obstacle * grid.ones([2])
     return dJ
 
 def dd_obj(w,s):

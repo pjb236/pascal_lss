@@ -20,7 +20,7 @@ import histstack
 
 from tunnel import *
 
-s = 0.1 # set parameters
+s = 0.1 * np.ones(2) # set parameters
 
 parser = argparse.ArgumentParser()
 parser.add_argument('nStart', type=int)

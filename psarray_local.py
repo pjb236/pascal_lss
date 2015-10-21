@@ -439,6 +439,7 @@ class psc_compile(object):
         self._compiled_function = None
         self._compiled_adjoint = None
         self._compiled_tangent = None
+        self._compiled_tan_force = None
 
     def __call__(self, u, *args, **kargs):
         if isinstance(u, psarray_theano):
@@ -462,6 +463,13 @@ class psc_compile(object):
             self._compiled_tangent = self.compile_tangent(u, *args, **kargs)
         data,data_p = self._compiled_tangent(in_tan._data, u._data)
         return u.grid.array(data, data.shape[2:]), u.grid.array(data_p, data_p.shape[2:])
+
+    def tan_force(self, u, s, *args, **kargs):
+        assert isinstance(u, psarray_numpy)
+        if not self._compiled_tangent:
+            self._compiled_tan_force = self.compile_tan_force(u, s, *args, **kargs)
+        data = self._compiled_tan_force(u._data, s)
+        return u.grid.array(data, data.shape[2:])
 
     def compile(self, u_np, *args, **kargs):
         grid = u_np.grid
@@ -525,6 +533,33 @@ class psc_compile(object):
 
         grid._math = grid_math
         return f
+
+    def compile_tan_force(self, u_np, s_np, *args, **kargs):
+        grid = u_np.grid
+        grid_math = grid._math
+        grid._math = T
+
+        tensor_dim = u_np.ndim + 2
+        input_data = T.TensorType('float64', (False,) * tensor_dim)()
+
+        tensor_dim = s_np.ndim
+        param = T.TensorType('float64', (False,) * tensor_dim)()
+        #param = T.dvector('s')
+
+        u_theano = grid.array(input_data.copy(), u_np.shape)
+        s_theano = np.array(param.copy(), s_np.shape)
+        
+        ret = self._function(u_theano, s_theano, *args, **kargs)
+
+        out_tan = T.jacobian(ret._data, param)
+
+        if _VERBOSE_: print('tangent derived in theano mode, compiling')
+        f = theano.function([input_data, param], [out_tan])
+        if _VERBOSE_: print('tangent sucessfully compiled')
+
+        grid._math = grid_math
+        return f
+
 
 
 #==============================================================================#
