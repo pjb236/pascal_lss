@@ -15,6 +15,8 @@ import pdb
 from scipy import sparse
 import scipy.sparse.linalg as splinalg
 
+from pariter import *
+
 ################################################################################
 # Import primal function 
 # Must include primal time step, tangent step step.tangent, adjoint step 
@@ -199,12 +201,16 @@ class lss(object):
          assert x.shape == (self.n * self.K,)
          w = x.reshape([-1,self.n])
          
-         if adjoint:
+         if adjoint and inhomo:
              inhomo_a = True
              inhomo_t = False
-         else:
+         elif inhomo:
              inhomo_a = False
              inhomo_t = True
+         else: 
+             inhomo_a = False
+             inhomo_t = False
+
 
          R_w = np.zeros([self.K, self.n])
          
@@ -217,14 +223,14 @@ class lss(object):
              else:
                  v.append(wim)
 
-             print "adjoint for ", i, " complete"
+             #print "adjoint for ", i, " complete"
          v.append(self.array2grid(-w[-1]))
 
          for i in range(self.K):
              # solve tangent
              vip,g = self.forward(i,v[i],inhomo=inhomo_t)
              R_w[i] = self.grid2array(vip - v[i+1]) + self.eps * w[i]
-             print "tangent for ", i, " complete"
+             #print "tangent for ", i, " complete"
          return np.ravel(R_w)
 
 
@@ -248,9 +254,8 @@ class lss_solver(object):
          self.m, self.K, self.n = lss.m, lss.K, lss.n
          self.matvec = lss.matvec
 
-     def callback(self,rk):
-         # TODO: fix callback!
-         print sum(x*x) ** 0.5 
+     def callback(self,xk):
+         print np.linalg.norm(self.matvec(xk,inhomo=True)) 
 
 
      def tangent(self):
@@ -263,20 +268,22 @@ class lss_solver(object):
          
          # compute right hand side
          x = np.zeros(self.K * self.n)
-         b = -self.matvec(x)
-
+         b = -self.matvec(x,inhomo=True)
+         
          # build linear operator
          oper = splinalg.LinearOperator((x.size,x.size), matvec=self.matvec, dtype=float)
 
-         # set up call back
+ 
+         #print np.linalg.norm(w)
+
          callback = lambda x : self.callback(x)
          callback(x)
          
+         w, info = par_minres(oper, b, x, np.dot, maxiter = 20, callback=callback2)
+         print np.linalg.norm(w)
 
-         # solve system
-         w, info = splinalg.gmres(oper, b, x0=x, maxiter = 20, callback = callback)
-         
-         print w.shape, np.linalg.norm(w)
+         w, info = par_minres(oper, b, w, np.dot, maxiter = 20, callback=callback2)
+         print np.linalg.norm(w)
 
          # compute gradient(s)
 
