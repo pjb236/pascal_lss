@@ -101,6 +101,7 @@ class lss(object):
          self._tan_force = tan_force
          self._adj_force = adj_force
          self.m, self.K = m, K
+         self.n = int( (Lx/dx) * (Ly/dy) * 4) # number of degrees of freedom
          self.proj = proj
          self.eps = float(eps) 
          print self.m, self.K 
@@ -134,7 +135,7 @@ class lss(object):
                   vt += self._tan_force(u,self.s) 
              vt,u = step.tangent(vt,u,self.s)
 
-         
+         # TODO: project!
          return vt, grad
 
      def backward(self, iSeg, vaT, inhomo=False):
@@ -153,7 +154,8 @@ class lss(object):
              if inhomo:
                  va += self._adj_force(u,self.s) / (self.m * self.K)
                  grad += self.grid_dot(self._tan_force(u,self.s),va)
-         
+        
+         # TODO: project!
          return va, grad
 
 
@@ -166,27 +168,48 @@ class lss(object):
 # - DO NOT forget dJds terms!
 
 
-
      def grid2array(self,v_grid):
          # convert grid object to 1D array
-         Nx,Ny = int(Lx / dx), int(Ly / dy)
          v_arr = v_grid._data
-         v_arr = np.reshape(v_arr, (Nx * Ny * 4,))
+         v_arr = np.reshape(v_arr, (self.n,))
          return v_arr
 
      def array2grid(self,v_arr):
          # convert 1D array to grid object
          Nx,Ny = int(Lx / dx), int(Ly / dy)
-         assert v_arr.shape[0] == Nx * Ny * 4
+         assert v_arr.shape[0] == self.n
          v_arr = np.reshape(v_arr, (Nx,Ny,4))
-         v_grid = grid.array(v_arr, v_arr.shape)
+         v_grid = grid.array(v_arr, v_arr.shape[2:])
          return v_grid
 
 
-# TODO: matvec
-# - matrix vector opertion to:
-# -- generate right hand side
-# -- perform operation of KKT matrix
+     def matvec(self, x, inhomo=False):
+         # matrix vector multiplication Ax + inhomo*b
+         # A is the KKT matrix, b is the right hand side
+         assert x.shape == (self.n * self.K,)
+         w = x.reshape([-1,self.n])
+         
+         R_w = np.zeros([self.K, self.n])
+         
+         v = [] # empty list for tangent initial conditions
+         for i in range(self.K):
+             # solve adjoint
+             wim,g = self.backward(i,self.array2grid(w[i]),inhomo=inhomo)
+             if i > 0:
+                 v.append(wim - self.array2grid(w[i-1]))
+             else:
+                 v.append(wim)
+
+             print "adjoint for ", i, " complete"
+         v.append(self.array2grid(-w[-1]))
+
+         for i in range(self.K):
+             # solve tangent
+             vip,g = self.forward(i,v[i])
+             R_w[i] = self.grid2array(vip - v[i+1]) + self.eps * w[i]
+             print "tangent for ", i, " complete"
+         return np.ravel(R_w)
+
 
 # TODO: matvec_pre
 # - matvec for preconditioner
