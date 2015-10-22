@@ -10,6 +10,11 @@ import sys
 import os
 import histstack
 import time
+import pdb
+
+from scipy import sparse
+import scipy.sparse.linalg as splinalg
+
 ################################################################################
 # Import primal function 
 # Must include primal time step, tangent step step.tangent, adjoint step 
@@ -87,13 +92,14 @@ class primal(object):
 class lss(object):
      # class containing all functions needed for multiple shooting LSS
      # inputs:
-     # m: time steps per segment
-     # K: number of time segments
-     # eps: filtering parameter (default 0)
+     # s: float(s), array of design parameters
+     # m: int, time steps per segment
+     # K: int, number of time segments
      # obj: objective function 
-     # tan_force
-     # adj_force
-
+     # tan_force: tangent forcing function
+     # adj_force: adjoint forcing function
+     # eps: float, filtering parameter
+     # proj: boolean, use projection functions or not
 
      def __init__(self,s,m,K,obj,tan_force,adj_force,eps=0.0,proj=True):
          self.s = s
@@ -102,9 +108,8 @@ class lss(object):
          self._adj_force = adj_force
          self.m, self.K = m, K
          self.n = int( (Lx/dx) * (Ly/dy) * 4) # number of degrees of freedom
-         self.proj = proj
          self.eps = float(eps) 
-         print self.m, self.K 
+         self.proj = proj
 
      def grid_dot(self,u,v):
          # dot product on all axes for grid2d objects u and v
@@ -125,7 +130,8 @@ class lss(object):
 
          # load primal
          u = grid.load('u{0:06d}.npy'.format(iSeg))  
-         vt = vt0.copy()
+         # projection for time dilation
+         vt = self.project_ddt(u,vt0.copy())
          grad = 0.0
 
          # iterate m times
@@ -134,17 +140,20 @@ class lss(object):
                   grad += self.grid_dot(self._adj_force(u,self.s),vt) / (self.m*self.K)
                   vt += self._tan_force(u,self.s) 
              vt,u = step.tangent(vt,u,self.s)
-
-         # TODO: project!
+         # projection for time dilation
+         vt = self.project_ddt(u,vt) 
          return vt, grad
 
      def backward(self, iSeg, vaT, inhomo=False):
          # solve adjoint for a time segment
+        
+         # projection for time dilation
+         u = grid.load('u{0:06d}.npy'.format(iSeg+1))
+         va = self.project_ddt(u,vaT.copy())
+         
          step_fx = lambda x : step(x,self.s) 
-
          history = histstack.HistoryStack(self.m, step_fx)
          history.populate(grid.load('u{0:06d}.npy'.format(iSeg)))
-         va = vaT.copy()
          grad = 0.0
 
          for i in range(self.m-1,-1,-1):
@@ -155,7 +164,8 @@ class lss(object):
                  va += self._adj_force(u,self.s) / (self.m * self.K)
                  grad += self.grid_dot(self._tan_force(u,self.s),va)
         
-         # TODO: project!
+         # projection for time dilation
+         va = self.project_ddt(u,va)
          return va, grad
 
 
@@ -183,18 +193,25 @@ class lss(object):
          return v_grid
 
 
-     def matvec(self, x, inhomo=False):
+     def matvec(self, x, inhomo=False, adjoint=True):
          # matrix vector multiplication Ax + inhomo*b
          # A is the KKT matrix, b is the right hand side
          assert x.shape == (self.n * self.K,)
          w = x.reshape([-1,self.n])
          
+         if adjoint:
+             inhomo_a = True
+             inhomo_t = False
+         else:
+             inhomo_a = False
+             inhomo_t = True
+
          R_w = np.zeros([self.K, self.n])
          
          v = [] # empty list for tangent initial conditions
          for i in range(self.K):
              # solve adjoint
-             wim,g = self.backward(i,self.array2grid(w[i]),inhomo=inhomo)
+             wim,g = self.backward(i,self.array2grid(w[i]),inhomo=inhomo_a)
              if i > 0:
                  v.append(wim - self.array2grid(w[i-1]))
              else:
@@ -205,7 +222,7 @@ class lss(object):
 
          for i in range(self.K):
              # solve tangent
-             vip,g = self.forward(i,v[i])
+             vip,g = self.forward(i,v[i],inhomo=inhomo_t)
              R_w[i] = self.grid2array(vip - v[i+1]) + self.eps * w[i]
              print "tangent for ", i, " complete"
          return np.ravel(R_w)
@@ -220,9 +237,56 @@ class lss(object):
 
 
 # SOLVER CLASS
+class lss_solver(object):
+     # Class containing solvers, using scipy's sparse linear algebra package
+     def __init__(self,lss):
+         # inputs:
+         # lss: lss object
+         # ...
+         # TODO: all solver parameters and options go here!
+         
+         self.m, self.K, self.n = lss.m, lss.K, lss.n
+         self.matvec = lss.matvec
+
+     def callback(self,rk):
+         # TODO: fix callback!
+         print sum(x*x) ** 0.5 
+
+
+     def tangent(self):
+         # tangent LSS
+         return 0.0
+
+
+     def adjoint(self):
+         # adjoint LSS
+         
+         # compute right hand side
+         x = np.zeros(self.K * self.n)
+         b = -self.matvec(x)
+
+         # build linear operator
+         oper = splinalg.LinearOperator((x.size,x.size), matvec=self.matvec, dtype=float)
+
+         # set up call back
+         callback = lambda x : self.callback(x)
+         callback(x)
+         
+
+         # solve system
+         w, info = splinalg.gmres(oper, b, x0=x, maxiter = 20, callback = callback)
+         
+         print w.shape, np.linalg.norm(w)
+
+         # compute gradient(s)
+
+# TODO: restart capability: restart solution given current adjoints, 
 
 # TODO: precon
 # - preconditioner: fixed number of krylov iterations with some sort of simplified matrix?
 
 # TODO: solver
 # - solve KKT system -> GMRES! -> careful, need parallel implementation, note that minres restart capability is bad for python
+
+
+# TODO: Post Process Class: generate plots of primal and adjoint fields, norms, etc from solution.
