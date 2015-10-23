@@ -237,14 +237,41 @@ class lss(object):
              #print "tangent for ", i, " complete"
          return np.ravel(R_w)
 
+     def matvec_blk_jack(self, x, i):
+         # matrix vector multiplication Ax 
+         # A is the ith block on the main block diagonal of the KKT matrix
+         # equivalent to solving LSS on each time segment individually
+         assert x.shape == (self.n,)
+        
+         # solve adjoint
+         wim,g = self.backward(i,self.array2grid(x))
+         # solve tangent
+         vip,g = self.forward(i,wim)
+         return self.grid2array(vip) + (1.0 + self.eps) * x
 
-# TODO: matvec_pre
-# - matvec for preconditioner
+
+
+
 
 # TODO: tests
 # - test tangent and adjoint consistency
 # - tests from NASA?
 
+# Callback Class
+class Callback:
+    # Convergence Monitor
+    def __init__(self):
+        self.n = 0
+        self.hist = []
+
+    def __call__(self, x, r):
+        self.n += 1
+        if self.n == 1 or self.n % 5 == 0:
+            grad = 0.0
+            print 'iter ', self.n, r, grad
+            self.hist.append([self.n, r, grad])
+        else: 
+            print 'iter ', self.n, r
 
 # SOLVER CLASS
 class lss_solver(object):
@@ -257,11 +284,27 @@ class lss_solver(object):
          
          self.m, self.K, self.n = lss.m, lss.K, lss.n
          self.matvec = lss.matvec
+         self.matvec_pre = lss.matvec_blk_jack
          self.array2grid = lss.array2grid
          self.grid2array = lss.grid2array
 
-     def callback(self,xk,rk):
-         print rk 
+     
+     def precon(self,x,iiter):
+         # preconditioner operation
+         assert x.shape == (self.n * self.K,)
+         x = x.reshape([-1,self.n])
+         y = np.zeros(x.shape)
+
+         for i in range(self.K):
+             mv = lambda x : self.matvec_pre(x,i)
+             oper = splinalg.LinearOperator((self.n,self.n), matvec=mv, dtype=float)
+             yi, info = par_minres(oper, x[i], np.zeros(self.n), np.dot, maxiter = iiter)
+             y[i] = yi
+
+
+         
+         return y.reshape((self.K * self.n,))
+
 
      def tangent(self):
          # tangent LSS
@@ -290,14 +333,20 @@ class lss_solver(object):
          # build linear operator
          oper = splinalg.LinearOperator((w0.size,w0.size), matvec=self.matvec, dtype=float)
 
- 
-         #print np.linalg.norm(w)
-
-         callback = lambda x,r : self.callback(x,r)
+          
+         #callback = lambda x,r : self.callback(x,r)
+         callback = Callback()
          #callback(x,np.linalg.norm(b))
-
-         w, info = par_minres(oper, b, w0, np.dot, maxiter = 20, callback=callback)
          
+         # preconditioner
+         M_x = lambda x: self.precon(x,5)
+         M = splinalg.LinearOperator((w0.size,w0.size), M_x)
+
+         # solve system
+         # TODO: preconditioned minres?
+         # w, info = par_minres(oper, b, w0, np.dot, maxiter = 20, callback=callback)
+         w, info = par_cg(oper, b, w0, np.dot, maxiter = 20, callback=callback, M=M)
+
          # save solution (terminal conditions for each segment)
          w = w.reshape([-1,self.n])
 
