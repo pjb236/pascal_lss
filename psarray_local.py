@@ -9,6 +9,11 @@ import unittest
 import numpy as np
 import theano
 import theano.tensor as T
+import pickle
+import os
+import sys
+
+sys.setrecursionlimit(50000)
 
 _VERBOSE_ = False
 
@@ -446,21 +451,45 @@ class psc_compile(object):
             return self._function(u, *args, **kargs)
         assert isinstance(u, psarray_numpy)
         if not self._compiled_function:
-            self._compiled_function = self.compile(u, *args, **kargs)
+            if os.path.exists('primal.pkl'):
+                # load pickle if one exists
+                pkl = open('primal.pkl').read()
+                self._compiled_function = pickle.loads(pkl)
+            else:
+                self._compiled_function = self.compile(u, *args, **kargs)
+                # save pickle for future use
+                pkl = pickle.dumps(self._compiled_function)
+                open('primal.pkl','w').write(pkl)
         data = self._compiled_function(u._data)
         return u.grid.array(data, data.shape[2:])
 
     def adjoint(self, out_adj, u, *args, **kargs):
         assert isinstance(u, psarray_numpy)
         if not self._compiled_adjoint:
-            self._compiled_adjoint = self.compile_adjoint(u, *args, **kargs)
+            if os.path.exists('adjoint.pkl'):
+                # load pickle if one exists
+                pkl = open('adjoint.pkl').read()
+                self._compiled_adjoint = pickle.loads(pkl)
+            else:
+                self._compiled_adjoint = self.compile_adjoint(u, *args, **kargs)
+                # save pickle for future use
+                pkl = pickle.dumps(self._compiled_adjoint)
+                open('adjoint.pkl','w').write(pkl)
         data = self._compiled_adjoint(out_adj._data, u._data)
         return u.grid.array(data, data.shape[2:])
 
     def tangent(self, in_tan, u, *args, **kargs):
         assert isinstance(u, psarray_numpy)
         if not self._compiled_tangent:
-            self._compiled_tangent = self.compile_tangent(u, *args, **kargs)
+            if os.path.exists('tangent.pkl'):
+                # load pickle if one exists
+                pkl = open('tangent.pkl').read()
+                self._compiled_tangent = pickle.loads(pkl)
+            else:
+                self._compiled_tangent = self.compile_tangent(u, *args, **kargs)
+                # save pickle for future use
+                pkl = pickle.dumps(self._compiled_tangent)
+                open('tangent.pkl','w').write(pkl)
         data,data_p = self._compiled_tangent(in_tan._data, u._data)
         return u.grid.array(data, data.shape[2:]), u.grid.array(data_p, data_p.shape[2:])
 
